@@ -140,12 +140,36 @@ instance-hours a month, while 24/7 uptime is ~730. Pinging turns a
 scale-to-zero free tier into an always-on one that runs out partway through the
 month, on both services at once.
 
-## The cold start
+## Running on the free tier
 
-Render's free web services sleep after ~15 minutes idle, and a JVM waking in a
-cold container takes 40–60 seconds. A reviewer who opens the link once will sit
-on a blank page long enough to assume it is broken. The Starter tier removes
-this, and is the reason `plan: starter` is in the blueprint.
+Two constraints come with `plan: free`.
+
+**512MB.** The JVM is sized for it in `backend/Dockerfile`: 55% max heap plus a
+metaspace cap, which leaves room for code cache and thread stacks underneath the
+container limit. Only the heap counts against `MaxRAMPercentage`, and it is the
+regions underneath it that push a container into an OOM kill.
+
+Measured, running the real image under a hard `--memory=512m` with no swap:
+
+```
+start          5s
+idle           181 MB / 512 MB   (35%)
+after 60 reqs  192 MB / 512 MB   (38%)
+restarts       0,  OOMKilled=false
+```
+
+**Sleeping.** The instance stops after ~15 minutes without inbound traffic, and
+a JVM waking in a cold container takes 40–60 seconds — long enough that someone
+opening the link once may assume it is broken.
+
+Ping `/health` every 10–14 minutes from an external cron to avoid that. Not
+`/actuator/health`: that one validates a database connection, so it would wake
+Neon on every ping and spend its compute hours too.
+
+Check the arithmetic before relying on it. Free is ~750 instance-hours a month
+and 24/7 is ~730, so a keep-alive turns a scale-to-zero service into an
+always-on one that has almost no margin left. If the demo needs to be reliably
+instant for a specific window, that is what the paid tier buys.
 
 Neon also scales to zero but wakes in well under a second, so it is not the
 problem here.

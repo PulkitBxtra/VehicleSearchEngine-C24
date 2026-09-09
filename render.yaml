@@ -20,10 +20,11 @@ services:
     # the region, searches took 270-383ms against 10-30ms locally.
     region: singapore
 
-    # 'free' works, but free instances sleep after ~15 minutes idle and a JVM
-    # waking in a cold container takes 40-60s -- long enough that someone
-    # opening the link once concludes it is broken.
-    plan: starter
+    # Free tier: 512MB and sleeps after ~15 minutes without inbound traffic.
+    # The JVM is sized for that limit in backend/Dockerfile, and /health exists
+    # so an external cron can keep the instance warm without waking the
+    # database. Budget ~750 instance-hours a month against ~730 for 24/7.
+    plan: free
 
     healthCheckPath: /actuator/health
 
