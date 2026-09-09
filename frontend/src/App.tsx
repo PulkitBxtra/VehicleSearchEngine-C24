@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { search } from './api'
-import type { Chip, FilterSpec } from './types'
+import type { Chip, Constraints, FilterSpec } from './types'
 import { ChipStrip } from './components/ChipStrip'
 import { VehicleCard } from './components/VehicleCard'
 import { FacetPanel } from './components/FacetPanel'
@@ -175,15 +175,16 @@ export default function App() {
 function withoutChip(spec: FilterSpec, chip: Chip): FilterSpec {
   const next: FilterSpec = structuredClone(spec)
 
-  if (chip.field === 'freeText') { next.freeText = null; return next }
+  if (chip.field === 'freeText') { next.freeText = undefined; return next }
 
   if (chip.kind === 'PREFERENCE') {
-    next.preferences = next.preferences.filter((p) => p.source !== chip.source)
-    next.appliedConcepts = next.appliedConcepts.filter((c) => c !== chip.source)
+    next.preferences = (next.preferences ?? []).filter((p) => p.source !== chip.source)
+    next.appliedConcepts = (next.appliedConcepts ?? []).filter((c) => c !== chip.source)
     return next
   }
 
-  const key = chip.field.replace('constraints.', '') as keyof FilterSpec['constraints']
+  if (!next.constraints) return next
+  const key = chip.field.replace('constraints.', '') as keyof Constraints
   const current = next.constraints[key]
   // Categorical constraints reset to an empty list, scalar and range ones to null.
   ;(next.constraints as Record<string, unknown>)[key] = Array.isArray(current) ? [] : null

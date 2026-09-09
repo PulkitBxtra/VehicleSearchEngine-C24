@@ -1,5 +1,6 @@
 package com.c24.vehiclesearch.search.spec;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.Valid;
 
 import java.util.ArrayList;
@@ -69,6 +70,7 @@ public record FilterSpec(
     }
 
     /** True when nothing at all was understood — the caller should say so, not show the whole catalogue. */
+    @JsonIgnore
     public boolean isBlank() {
         return constraints.equals(Constraints.empty())
                 && preferences.isEmpty()

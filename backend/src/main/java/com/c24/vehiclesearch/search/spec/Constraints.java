@@ -1,5 +1,6 @@
 package com.c24.vehiclesearch.search.spec;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.c24.vehiclesearch.catalog.BodyType;
 import com.c24.vehiclesearch.catalog.FuelType;
 import com.c24.vehiclesearch.catalog.Transmission;
@@ -68,6 +69,7 @@ public record Constraints(
     }
 
     /** A query whose bounds cross returns nothing; we say so rather than showing an empty page. */
+    @JsonIgnore
     public boolean isUnsatisfiable() {
         return anyCrossed(priceInr, emiMonthly, kmDriven, year, seats);
     }

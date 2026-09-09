@@ -1,5 +1,6 @@
 package com.c24.vehiclesearch.search.spec;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 /**
  * An inclusive numeric bound. Either end may be null (open).
  * Everything filterable in this catalogue is integral, so one type covers
@@ -11,6 +12,7 @@ public record NumRange(Long gte, Long lte) {
     public static NumRange atLeast(long v) { return new NumRange(v, null); }
     public static NumRange between(long lo, long hi) { return new NumRange(lo, hi); }
 
+    @JsonIgnore
     public boolean isEmpty() { return gte == null && lte == null; }
 
     /** Narrowest-wins. Two constraints on the same field intersect, never widen. */
@@ -34,6 +36,7 @@ public record NumRange(Long gte, Long lte) {
     }
 
     /** True when the bounds cross, e.g. "over 20L" merged with "under 5L". */
+    @JsonIgnore
     public boolean isUnsatisfiable() {
         return gte != null && lte != null && gte > lte;
     }
