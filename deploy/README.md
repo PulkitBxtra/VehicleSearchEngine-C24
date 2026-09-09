@@ -23,6 +23,29 @@ ENV
 cd deploy && docker compose -f docker-compose.prod.yml --env-file .env up -d --build
 ```
 
+## Rehearse it locally first
+
+The whole stack runs on your laptop exactly as it runs on the VPS. Do this
+before touching the server — it catches Dockerfile and compose mistakes without
+a failed deploy to debug over SSH.
+
+```bash
+cd deploy
+SITE_ADDRESS=localhost DB_PASSWORD=local GEMINI_API_KEY= \
+  docker compose -f docker-compose.prod.yml up -d --build
+
+curl -sk https://localhost/                 # frontend, Caddy's local cert
+curl -sk https://localhost/actuator/health  # {"status":"UP"}
+curl -sk -X POST https://localhost/api/v1/search \
+  -H 'Content-Type: application/json' -d '{"query":"diesel automatic under 10 lakh"}'
+
+docker compose -f docker-compose.prod.yml down -v
+```
+
+The `frontend` container exiting with code 0 is correct — it is a build step that
+copies the compiled bundle into the volume Caddy serves, not a long-running
+service.
+
 ## Checks after deploy
 
 ```bash
@@ -30,6 +53,10 @@ curl -s https://your-domain/actuator/health         # {"status":"UP"}
 docker compose -f docker-compose.prod.yml ps        # db healthy, app running
 ss -tlnp | grep -E '5432|8080'                      # must show nothing on 0.0.0.0
 ```
+
+`/swagger-ui.html` and `/v3/api-docs` are deliberately left enabled — this is a
+demo, and the API documentation being live is a feature. On a real deployment
+set `springdoc.api-docs.enabled=false`.
 
 That last check is the important one. If Postgres appears on `0.0.0.0`, a port
 got published somewhere and `ufw` will not save you — Docker's iptables rules in
