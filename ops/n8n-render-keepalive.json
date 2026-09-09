@@ -1,0 +1,97 @@
+{
+  "name": "Render keep-alive — vehicle-search",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/10 7-23 * * *"
+            }
+          ]
+        }
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "name": "Every 10 min, 07:00-23:59",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-220, 0],
+      "notes": "Deliberately not 24/7. Render free allows ~750 instance-hours a month and always-on is ~730, which would exhaust the allowance and suspend the service before month end. A 17-hour window is ~527 hours and leaves real margin. Times follow the n8n instance timezone - set it under Settings if it is not already IST."
+    },
+    {
+      "parameters": {
+        "url": "https://vehicle-search-api.onrender.com/health",
+        "options": {
+          "timeout": 90000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "a1b2c3d4-0002-4000-8000-000000000002",
+      "name": "Wake API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [0, -100],
+      "onError": "continueRegularOutput",
+      "notes": "/health, not /actuator/health. This path touches nothing, so it wakes the web service without also waking Neon and spending its compute hours. A 90s timeout because a cold JVM start takes 40-60s - a short timeout aborts the request before the wake completes."
+    },
+    {
+      "parameters": {
+        "url": "https://vehicle-search-h4zg.onrender.com/",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "a1b2c3d4-0003-4000-8000-000000000003",
+      "name": "Check UI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [0, 100],
+      "onError": "continueRegularOutput",
+      "notes": "Availability check only. Render static sites have no instance to stop, so they never sleep and this does not keep anything alive - it just tells you if the site stopped serving."
+    },
+    {
+      "parameters": {
+        "jsCode": "// One row per target, so a failure is visible in the execution list\n// rather than buried in a response body.\nconst checks = [\n  { target: 'api', node: 'Wake API' },\n  { target: 'ui',  node: 'Check UI' },\n];\n\nconst results = checks.map(({ target, node }) => {\n  let status = 0;\n  try {\n    status = $(node).first().json.statusCode ?? 0;\n  } catch (e) {\n    status = 0;\n  }\n  return {\n    json: {\n      target,\n      status,\n      ok: status >= 200 && status < 400,\n      checkedAt: new Date().toISOString(),\n    },\n  };\n});\n\nconst failed = results.filter((r) => !r.json.ok).map((r) => r.json.target);\nif (failed.length) {\n  // Surfaces as a failed execution so n8n's own alerting can catch it.\n  throw new Error(`Unreachable: ${failed.join(', ')}`);\n}\n\nreturn results;"
+      },
+      "id": "a1b2c3d4-0004-4000-8000-000000000004",
+      "name": "Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 0]
+    }
+  ],
+  "connections": {
+    "Every 10 min, 07:00-23:59": {
+      "main": [
+        [
+          { "node": "Wake API", "type": "main", "index": 0 },
+          { "node": "Check UI", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Wake API": {
+      "main": [[{ "node": "Report", "type": "main", "index": 0 }]]
+    },
+    "Check UI": {
+      "main": [[{ "node": "Report", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "none",
+    "saveExecutionProgress": false
+  },
+  "pinData": {}
+}
