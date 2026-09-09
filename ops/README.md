@@ -1,47 +1,54 @@
 # Keep-alive
 
-`n8n-render-keepalive.json` pings the deployed API often enough that a free
-Render instance never sleeps during waking hours.
+`n8n-render-keepalive.json` — pings the deployed API every 5 minutes so the free
+Render instance never sleeps.
+
+Lives on the n8n instance as workflow id **`vehicle-search-keepalive`**.
 
 ## Import
 
-n8n → **Workflows → Import from File** (or paste the JSON onto an empty
-canvas), then **Activate**.
+n8n → **Workflows → Import from File**, then activate. Or from the host:
 
-Check the instance timezone under **Settings → Timezone** first; the schedule is
-expressed in it.
+```bash
+docker cp n8n-render-keepalive.json n8n-xc57-n8n-1:/tmp/wf.json
+docker exec n8n-xc57-n8n-1 n8n import:workflow --input=/tmp/wf.json
+docker exec n8n-xc57-n8n-1 n8n update:workflow --id=vehicle-search-keepalive --active=true
+docker restart n8n-xc57-n8n-1     # CLI activation needs a reload to register the trigger
+```
 
-## What it does
+## Shape
 
-| Node | |
-|---|---|
-| Schedule | every 10 minutes, 07:00–23:59 |
-| Wake API | `GET /health` on the API, 90s timeout |
-| Check UI | `GET /` on the static site, 30s timeout |
-| Report | fails the execution if either is unreachable |
+`Every 5 Minutes` → `Ping Health Endpoint` → `Record Result`
 
 ## Why it is built this way
 
-**`/health`, not `/actuator/health`.** The actuator endpoint validates a
-database connection, so pinging it would wake Neon on every run and spend its
-compute hours to solve a Render problem. `/health` touches nothing.
+**`/health`, not `/actuator/health`.** The actuator path validates a database
+connection, so pinging it would wake Neon on every run and spend its compute
+hours to solve a Render problem. `/health` touches nothing.
 
-**90-second timeout.** A cold JVM start is 40–60s. A short timeout aborts the
-request before the wake finishes, so the ping costs a request and achieves
-nothing.
+**90-second timeout.** A cold JVM start is 40–60s; a shorter timeout aborts
+before the wake completes and the ping achieves nothing.
 
-**Not 24/7.** This is the part that keeps it free. Render allows ~750
-instance-hours a month; always-on is ~730, which exhausts the allowance and
-suspends the service before month end. A 17-hour window is ~510 hours and leaves
-240 to spare.
+**24/7 is affordable.** A 31-day month is 744 instance-hours against the 750 a
+free workspace gets, and the allowance resets on the 1st rather than on a
+rolling window. Two caveats: the margin is ~6 hours, and the 750 is shared
+across *every* free web service in the workspace — a second one would exceed it,
+and Render then suspends all of them until the next month. Static sites do not
+count, so the frontend is free and needs no keep-alive: it has no instance to
+stop and never sleeps.
 
-**The UI check is monitoring, not keep-alive.** Render static sites have no
-instance to stop, so they never sleep. That request only tells you if the site
-stopped serving.
+**No cross-node references in the Code node.** `$('Some Node')` hangs
+indefinitely when the Code node runs in an external task runner, which is how
+this instance is configured. It reads `$input` only.
 
-## Adjusting
+**`saveDataSuccessExecution: "all"`.** With `"none"`, n8n never writes the
+terminal state and every successful run sits at `running` forever — the
+executions look stuck when they are not.
 
-- Different hours: edit the cron, `*/10 7-23 * * *`.
-- Only during a review window: activate it then, deactivate afterwards. Nothing
-  accrues while it is off.
-- Different URLs: the two `url` fields.
+## Related
+
+`n8n-ORIGINAL-keep-render-app-awake.recovered.json` is a recovered copy of the
+pre-existing `render-keepalive-wf` workflow, which pings a different service
+(`ap-zamp`). Kept because it was briefly overwritten by an import that reused
+its id; restored from n8n's own execution history. Nothing here should ever use
+that id.

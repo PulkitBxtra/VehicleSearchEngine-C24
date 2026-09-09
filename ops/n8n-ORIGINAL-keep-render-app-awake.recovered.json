@@ -1,0 +1,106 @@
+{
+  "id": "render-keepalive-wf",
+  "name": "Keep Render App Awake",
+  "nodes": [
+    {
+      "id": "ka-trigger",
+      "name": "Every 5 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "notice": "",
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        },
+        "skipDurableScheduler": false
+      }
+    },
+    {
+      "id": "ka-ping",
+      "name": "Ping Health Endpoint",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        0
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "curlImport": "",
+        "method": "GET",
+        "url": "https://ap-zamp.onrender.com/api/v1/health",
+        "authentication": "none",
+        "provideSslCertificates": false,
+        "sendQuery": false,
+        "sendHeaders": false,
+        "sendBody": false,
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "autodetect"
+            }
+          },
+          "timeout": 60000
+        },
+        "infoMessage": ""
+      }
+    },
+    {
+      "id": "ka-log",
+      "name": "Record Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Render's free plan sleeps a service after ~15 minutes with no traffic, and the\n// next request then pays a 30-60s cold start. Pinging every 5 minutes keeps it warm\n// with margin for two missed runs.\n//\n// neverError + fullResponse above means a non-200 or a timeout still arrives here as\n// data rather than failing the execution - a keepalive that goes red on one blip is\n// noise, and the whole point is that it runs unattended.\nconst r = $input.first().json || {};\nconst status = r.statusCode ?? null;\nconst ok = status === 200;\nreturn [{\n  json: {\n    ok,\n    statusCode: status,\n    body: r.body ?? null,\n    checkedAt: new Date().toISOString()\n  }\n}];",
+        "notice": ""
+      }
+    }
+  ],
+  "connections": {
+    "Every 5 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Ping Health Endpoint",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ping Health Endpoint": {
+      "main": [
+        [
+          {
+            "node": "Record Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "all",
+    "saveExecutionProgress": false
+  },
+  "nodeGroups": []
+}
