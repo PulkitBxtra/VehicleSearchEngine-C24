@@ -22,6 +22,7 @@ public record Vehicle(
         int seats,
         int engineCc,
         BigDecimal mileageKmpl,
+        Integer rangeKm,
         int bootLitres,
         Integer ncapStars,
         String city,

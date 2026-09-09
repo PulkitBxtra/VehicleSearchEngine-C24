@@ -2,8 +2,8 @@ package com.c24.vehiclesearch.search.concept;
 
 import com.c24.vehiclesearch.search.spec.FilterSpec;
 import com.c24.vehiclesearch.search.spec.Preference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.dataformat.yaml.YAMLFactory;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 

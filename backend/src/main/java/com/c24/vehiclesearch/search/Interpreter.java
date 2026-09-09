@@ -30,7 +30,12 @@ public class Interpreter {
         list(chips, "constraints.bodyTypes",     "Body",         c.bodyTypes());
         list(chips, "constraints.fuelTypes",     "Fuel",         c.fuelTypes());
         list(chips, "constraints.transmissions", "Transmission", c.transmissions());
-        list(chips, "constraints.cities",        "City",         c.cities());
+        // Show what was actually searched. "bangalore" matches Bengaluru stock,
+        // and saying so is more useful than echoing the alias back.
+        list(chips, "constraints.cities", "City",
+                c.cities().stream()
+                        .map(com.c24.vehiclesearch.search.query.Cities::canonical)
+                        .toList());
 
         range(chips, "constraints.priceInr",   "Price", c.priceInr(), Money::format);
         range(chips, "constraints.emiMonthly", "EMI",   c.emiMonthly(), v -> Money.format(v) + "/mo");

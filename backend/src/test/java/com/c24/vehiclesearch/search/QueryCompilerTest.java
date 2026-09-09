@@ -15,6 +15,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@SuppressWarnings("unchecked")
 class QueryCompilerTest {
 
     private final QueryCompiler compiler = new QueryCompiler(1.5, 0.5, 4.0, 0.25);
@@ -57,6 +58,22 @@ class QueryCompilerTest {
         assertThat(q.rowsSql()).doesNotContain("DROP TABLE");
         assertThat(q.rowsSql()).contains(":freeText");
         assertThat(q.params().getValue("freeText")).isEqualTo("creta'; DROP TABLE vehicles;--");
+    }
+
+    @Test
+    @DisplayName("city names are matched case-insensitively and de-aliased")
+    void citiesAreCanonicalised() {
+        var spec = FilterSpec.empty().withConstraints(new Constraints(
+                null, null, null, null, List.of("Bangalore", "BOMBAY"),
+                null, null, null, null, null, null, null));
+
+        var q = compiler.compile(spec, 0, 20);
+
+        // The catalogue stores "Bengaluru" and "Mumbai"; a literal IN on what the
+        // user typed returns nothing and looks like empty inventory.
+        assertThat(q.rowsSql()).contains("LOWER(city) IN (:cities)");
+        assertThat((List<String>) q.params().getValue("cities"))
+                .containsExactly("bengaluru", "mumbai");
     }
 
     @Test

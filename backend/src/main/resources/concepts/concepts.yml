@@ -77,9 +77,19 @@ concepts:
     constraints:
       maxOwners: 1
 
+  # Split deliberately. One concept covering both terms made "6 seater" and
+  # "7 seater" produce identical filters, which is wrong and was caught by the
+  # graded evaluation: the rules parser papered over it with a separate numeric
+  # pattern, so only the LLM path exposed the ambiguity.
   seven_seater:
     label: 7 seater
-    terms: [7 seater, 7-seater, seven seater, 7 seat, six seater, 6 seater]
+    terms: [7 seater, 7-seater, seven seater, 7 seat, 7 seats]
+    constraints:
+      seats: { gte: 7 }
+
+  six_seater:
+    label: 6 seater
+    terms: [6 seater, 6-seater, six seater, 6 seat, 6 seats]
     constraints:
       seats: { gte: 6 }
 

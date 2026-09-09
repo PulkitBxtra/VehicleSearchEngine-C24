@@ -1,7 +1,7 @@
 package com.c24.vehiclesearch.catalog;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.jdbc.core.RowMapper;
 
 import java.sql.ResultSet;
@@ -36,6 +36,7 @@ public class VehicleRowMapper implements RowMapper<Vehicle> {
                 rs.getInt("seats"),
                 rs.getInt("engine_cc"),
                 rs.getBigDecimal("mileage_kmpl"),
+                (Integer) rs.getObject("range_km"),
                 rs.getInt("boot_litres"),
                 (Integer) rs.getObject("ncap_stars"),
                 rs.getString("city"),

@@ -81,9 +81,10 @@ public class SeedRunner implements ApplicationRunner {
         jdbc.batchUpdate("""
                 INSERT INTO vehicles (
                     registration, make, model, variant, year, body_type, fuel_type, transmission,
-                    price_inr, km_driven, owners, seats, engine_cc, mileage_kmpl, boot_litres,
-                    ncap_stars, city, hub, colour, status, listed_at, inspection_score, features)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?::jsonb)
+                    price_inr, km_driven, owners, seats, engine_cc, mileage_kmpl, range_km,
+                    boot_litres, ncap_stars, city, hub, colour, status, listed_at,
+                    inspection_score, features)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?::jsonb)
                 """, rows);
 
         int scored = computeDealScores();
@@ -107,7 +108,9 @@ public class SeedRunner implements ApplicationRunner {
         double inspection = Math.min(9.9, Math.max(5.5, 9.4 - age * 0.22 + rng.nextGaussian() * 0.5));
 
         long price = price(t, age, km, owners, inspection, fuel, rng);
-        double mileage = mileage(t, fuel, transmission);
+        boolean electric = fuel == FuelType.ELECTRIC;
+        Double mileage = electric ? null : mileage(t, fuel, transmission);
+        Integer rangeKm = electric ? 240 + rng.nextInt(130) : null;
 
         int cityIdx = rng.nextInt(CITIES.size());
         LocalDate listedAt = LocalDate.now().minusDays(rng.nextInt(120));
@@ -121,7 +124,8 @@ public class SeedRunner implements ApplicationRunner {
                 t.make(), t.model(), pick(rng, t.variants()), year,
                 t.bodyType().name(), fuel.name(), transmission.name(),
                 price, km, owners, t.seats(), t.engineCc(),
-                Math.round(mileage * 10) / 10.0, t.bootLitres(), ncap,
+                mileage == null ? null : Math.round(mileage * 10) / 10.0,
+                rangeKm, t.bootLitres(), ncap,
                 CITIES.get(cityIdx), CITIES.get(cityIdx) + " Hub", pick(rng, COLOURS),
                 "AVAILABLE", java.sql.Date.valueOf(listedAt),
                 Math.round(inspection * 10) / 10.0, features(rng, t)
@@ -158,13 +162,12 @@ public class SeedRunner implements ApplicationRunner {
 
     private double mileage(ModelTemplate t, FuelType fuel, Transmission transmission) {
         double m = t.baseMileage();
-        // Electrics have no kmpl. Indian listings quote a petrol-equivalent figure
-        // so the column stays comparable across fuels; that is what this is.
         m *= switch (fuel) {
             case DIESEL   -> 1.15;
             case CNG      -> 1.35;
             case HYBRID   -> 1.40;
-            case ELECTRIC -> 2.60;
+            // Never reached: electrics take range_km and skip this entirely.
+            case ELECTRIC -> 1.00;
             case PETROL   -> 1.00;
         };
         if (transmission != Transmission.MANUAL) m *= 0.93;

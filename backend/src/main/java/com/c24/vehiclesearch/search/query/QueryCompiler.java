@@ -31,7 +31,7 @@ public class QueryCompiler {
 
     private static final String SELECT_COLUMNS = """
             id, registration, make, model, variant, year, body_type, fuel_type, transmission,
-            price_inr, emi_monthly, km_driven, owners, seats, engine_cc, mileage_kmpl,
+            price_inr, emi_monthly, km_driven, owners, seats, engine_cc, mileage_kmpl, range_km,
             boot_litres, ncap_stars, city, hub, colour, status, listed_at, inspection_score,
             deal_score, features
             """;
@@ -99,7 +99,11 @@ public class QueryCompiler {
         inList(clauses, p, "body_type",    "bodyTypes",     c.bodyTypes());
         inList(clauses, p, "fuel_type",    "fuelTypes",     c.fuelTypes());
         inList(clauses, p, "transmission", "transmissions", c.transmissions());
-        inList(clauses, p, "city",         "cities",        c.cities());
+        // Compared case-insensitively against canonical names; see Cities.
+        if (c.cities() != null && !c.cities().isEmpty()) {
+            clauses.add("LOWER(city) IN (:cities)");
+            p.addValue("cities", c.cities().stream().map(Cities::canonical).toList());
+        }
         inList(clauses, p, "make",         "makes",         c.makes());
 
         range(clauses, p, "price_inr",   "price", c.priceInr());

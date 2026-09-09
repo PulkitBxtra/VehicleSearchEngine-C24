@@ -7,7 +7,7 @@ const GEARBOX: Record<string, string> = {
 
 export function VehicleCard({ v }: { v: Vehicle }) {
   // Priced meaningfully below comparable stock of the same model and year.
-  const goodDeal = v.dealScore >= 0.06
+  const goodDeal = (v.dealScore ?? 0) >= 0.06
 
   return (
     <article className="group rounded-lg border border-rule bg-card p-4 transition-colors hover:border-ink/35">
@@ -27,9 +27,9 @@ export function VehicleCard({ v }: { v: Vehicle }) {
       </div>
 
       <div className="mt-3 flex items-baseline gap-2.5">
-        <span className="tabular text-[22px] font-semibold">{rupees(v.priceInr)}</span>
+        <span className="tabular text-[22px] font-semibold">{rupees(v.priceInr ?? 0)}</span>
         <span className="tabular text-[12px] text-muted">
-          ₹{v.emiMonthly.toLocaleString('en-IN')}/mo
+          ₹{(v.emiMonthly ?? 0).toLocaleString('en-IN')}/mo
         </span>
         {goodDeal && (
           <span className="ml-auto rounded-sm bg-rust/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-rust uppercase">
@@ -39,12 +39,16 @@ export function VehicleCard({ v }: { v: Vehicle }) {
       </div>
 
       <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 border-t border-rule pt-3 text-[12px]">
-        <Row label="Driven" value={`${v.kmDriven.toLocaleString('en-IN')} km`} />
-        <Row label="Fuel" value={titleCase(v.fuelType)} />
-        <Row label="Gearbox" value={GEARBOX[v.transmission] ?? v.transmission} />
-        <Row label="Owners" value={v.owners === 1 ? 'First' : `${v.owners}`} />
+        <Row label="Driven" value={`${(v.kmDriven ?? 0).toLocaleString('en-IN')} km`} />
+        <Row label="Fuel" value={titleCase(v.fuelType ?? '')} />
+        <Row label="Gearbox" value={(v.transmission && GEARBOX[v.transmission]) || v.transmission || '—'} />
+        <Row label="Owners" value={v.owners === 1 ? 'First' : `${v.owners ?? '—'}`} />
         <Row label="Safety" value={v.ncapStars ? `${v.ncapStars}★ NCAP` : 'Not rated'} />
-        <Row label="Seats" value={`${v.seats}`} />
+        <Row label="Seats" value={`${v.seats ?? '—'}`} />
+        {/* Electrics have no km/l. Showing range instead of a converted figure
+            keeps the number meaningful rather than merely present. */}
+        <Row label={v.rangeKm ? 'Range' : 'Mileage'} value={economy(v)} />
+        <Row label="Boot" value={v.bootLitres ? `${v.bootLitres} L` : '—'} />
       </dl>
 
       <p className="mt-3 text-[11px] text-muted">
@@ -52,6 +56,11 @@ export function VehicleCard({ v }: { v: Vehicle }) {
       </p>
     </article>
   )
+}
+
+function economy(v: Vehicle): string {
+  if (v.rangeKm) return `${v.rangeKm} km`
+  return v.mileageKmpl ? `${v.mileageKmpl} kmpl` : '—'
 }
 
 function Row({ label, value }: { label: string; value: string }) {
