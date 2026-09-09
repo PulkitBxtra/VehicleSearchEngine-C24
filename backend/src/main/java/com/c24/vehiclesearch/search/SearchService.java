@@ -3,6 +3,7 @@ package com.c24.vehiclesearch.search;
 import com.c24.vehiclesearch.api.SearchRequest;
 import com.c24.vehiclesearch.api.SearchResponse;
 import com.c24.vehiclesearch.catalog.VehicleRepository;
+import com.c24.vehiclesearch.search.llm.LlmParser;
 import com.c24.vehiclesearch.search.parse.RuleParse;
 import com.c24.vehiclesearch.search.parse.RulesParser;
 import com.c24.vehiclesearch.search.query.CompiledQuery;
@@ -13,18 +14,21 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 public class SearchService {
 
     private final RulesParser rules;
+    private final LlmParser llm;
     private final QueryCompiler compiler;
     private final VehicleRepository repository;
     private final Interpreter interpreter;
 
-    public SearchService(RulesParser rules, QueryCompiler compiler,
+    public SearchService(RulesParser rules, LlmParser llm, QueryCompiler compiler,
                          VehicleRepository repository, Interpreter interpreter) {
         this.rules = rules;
+        this.llm = llm;
         this.compiler = compiler;
         this.repository = repository;
         this.interpreter = interpreter;
@@ -81,9 +85,31 @@ public class SearchService {
 
         RuleParse parsed = rules.parse(request.query());
 
-        // Day 2 wires Gemini in here: when !parsed.confident(), escalate the
-        // residual to the LLM and merge its spec over this one. The rules result
-        // stays the floor, so an LLM outage degrades rather than fails.
+        // The deterministic parser is the primary path. When it consumed the whole
+        // query there is nothing left for a model to add, so the common formulaic
+        // query never costs a call, a round trip, or a token.
+        if (parsed.confident()) {
+            return new Resolved(parsed.spec(), "RULES");
+        }
+
+        // Otherwise escalate the full query — not just the residual, since the
+        // parts the rules already understood are the context that disambiguates
+        // the rest. The model's answer replaces the rules answer wholesale rather
+        // than merging: two specs disagreeing about the same bound has no sensible
+        // resolution, and "whichever ran" is a far easier thing to reproduce from
+        // a log than "whichever half of each".
+        Optional<FilterSpec> fromModel = llm.parse(LlmParser.normalise(request.query()));
+        if (fromModel.isPresent() && !fromModel.get().isBlank()) {
+            FilterSpec spec = fromModel.get();
+            if (!spec.unmapped().isEmpty()) {
+                warnings.add("Ignored " + String.join(", ", spec.unmapped())
+                        + " — not something this catalogue can filter on.");
+            }
+            return new Resolved(spec, "LLM");
+        }
+
+        // No model, no key, budget spent, or nothing usable came back. The rules
+        // result is the floor: degraded, never absent.
         if (parsed.spec().isBlank()) {
             warnings.add("Could not extract any filter from that query; showing the whole catalogue.");
         }

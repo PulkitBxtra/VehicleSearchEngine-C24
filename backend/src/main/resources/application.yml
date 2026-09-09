@@ -15,6 +15,13 @@ spring:
 server:
   port: ${PORT:8080}
 
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    # Endpoints in declaration order rather than alphabetical: /search is the
+    # product, and it should be the first thing a reader sees.
+    operations-sorter: null
+
 management:
   endpoints.web.exposure.include: health,info
   endpoint.health.probes.enabled: true
@@ -26,8 +33,24 @@ search:
     freshness-weight: 0.5
     text-similarity-weight: 4.0
     trigram-threshold: 0.25
+  rate-limit:
+    requests-per-minute: ${RATE_LIMIT_RPM:60}
   seed:
     enabled: ${SEED_ENABLED:true}
     count: ${SEED_COUNT:600}
+
+gemini:
+  # Off unless a key is present, so a clone with no credentials still runs and
+  # still answers every formulaic query through the rules parser.
+  enabled: ${GEMINI_ENABLED:true}
+  api-key: ${GEMINI_API_KEY:}
+  base-url: https://generativelanguage.googleapis.com
+  # Pinned, not aliased. Lite because this task is extraction, not reasoning:
+  # it scored identically to gemini-3.8-flash on the golden set (see
+  # EVALUATION.md) and the free tier's 20/day quota is per-model, so the
+  # cheaper model is also the one that stays available.
+  model: ${GEMINI_MODEL:gemini-3.5-flash-lite}
+  timeout-ms: 4000
+  max-daily-calls: ${GEMINI_MAX_DAILY_CALLS:500}
 
 logging.level.com.c24.vehiclesearch: DEBUG
