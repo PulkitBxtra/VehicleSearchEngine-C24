@@ -31,6 +31,17 @@ export type Chip = {
   source?: string
 }
 
+export type SchemaResponse = components['schemas']['SchemaResponse']
+
+/** Narrowed the same way SearchResult is, and for the same reason. */
+export type Schema = {
+  enums: Record<string, string[]>
+  sorts: string[]
+  cities: string[]
+  makes: string[]
+  concepts: { key: string; label: string; kind: string; terms: string[] }[]
+}
+
 export type SearchResult = {
   interpretation: { chips: Chip[]; notes: string[] }
   filters: FilterSpec

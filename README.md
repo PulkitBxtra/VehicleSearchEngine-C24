@@ -139,6 +139,7 @@ Response:
 | `interpretation.notes` | Human-readable caveats — active sort, contradictions, uninterpreted terms |
 | `filters` | The `FilterSpec` that actually ran. Edit a field, resubmit as `filters` |
 | `results[]` | Matching vehicles, each with the `score` that ordered it |
+| `page` / `size` | Echoed back; the UI pages by resubmitting `filters`, never the sentence |
 | `totalElements` | Total matches, ignoring pagination |
 | `facets` | `dimension → value → count`, computed over the filtered set |
 | `parser` | `RULES`, `EXPLICIT`, `LLM`, or `NONE` |
@@ -165,9 +166,12 @@ and the frontend build fails at the call site.
 ### `GET /schema`
 
 Enum values, the concept vocabulary with each term's `kind`, actual min/max
-ranges from live inventory, cities, makes, and sort options. The UI builds its
-controls from this rather than hardcoding enums; it is also the vocabulary the
-LLM prompt will be given.
+ranges from live inventory, cities, makes, and sort options.
+
+The UI builds its sort control from this rather than hardcoding the enum, so a
+sort added to the backend appears in the frontend with no frontend change. The
+concept list is the same vocabulary handed to the model, which is what keeps the
+prompt and the dictionary from drifting apart.
 
 ### `GET /actuator/health`
 

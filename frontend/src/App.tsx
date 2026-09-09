@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { search } from './api'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { fetchSchema, search } from './api'
 import type { Chip, Constraints, FilterSpec } from './types'
 import { ChipStrip } from './components/ChipStrip'
 import { VehicleCard } from './components/VehicleCard'
 import { FacetPanel } from './components/FacetPanel'
+import { Pagination, SortSelect } from './components/ResultControls'
+
+const PAGE_SIZE = 24
 
 const EXAMPLES = [
   'SUVs under ₹15L',
@@ -17,9 +20,19 @@ const EXAMPLES = [
 export default function App() {
   const [draft, setDraft] = useState(() => new URLSearchParams(location.search).get('q') ?? '')
   const [query, setQuery] = useState(draft)
-  // Chip edits produce a spec directly. Holding it here means refining a search
-  // never re-parses language — the backend runs the spec as given.
-  const [override, setOverride] = useState<FilterSpec | null>(null)
+  // Any refinement — a removed chip, a sort change, a page turn — produces a
+  // spec directly. Holding it here means refining a search never re-parses the
+  // sentence, so it costs no model call however many times it is adjusted.
+  const [spec, setSpec] = useState<FilterSpec | null>(null)
+  const [page, setPage] = useState(0)
+
+  // The catalogue describes its own filterable surface; controls are built from
+  // that rather than from hardcoded enums.
+  const { data: schema } = useQuery({
+    queryKey: ['schema'],
+    queryFn: fetchSchema,
+    staleTime: Infinity,
+  })
 
   useEffect(() => {
     const url = new URL(location.href)
@@ -28,18 +41,37 @@ export default function App() {
   }, [query])
 
   const { data, isFetching, error } = useQuery({
-    queryKey: ['search', query, override],
-    queryFn: () => search(override ? { filters: override, size: 24 } : { query, size: 24 }),
-    enabled: query.trim().length > 0 || override !== null,
+    queryKey: ['search', query, spec, page],
+    queryFn: () =>
+      search(spec ? { filters: spec, page, size: PAGE_SIZE } : { query, page, size: PAGE_SIZE }),
+    enabled: query.trim().length > 0 || spec !== null,
+    // Keep the current page visible while the next one loads, so turning a page
+    // does not collapse the layout and jump the scroll position.
+    placeholderData: keepPreviousData,
   })
 
   function runQuery(next: string) {
-    setDraft(next); setQuery(next); setOverride(null)
+    setDraft(next); setQuery(next); setSpec(null); setPage(0)
   }
 
   function removeChip(chip: Chip) {
     if (!data) return
-    setOverride(withoutChip(data.filters, chip))
+    setSpec(withoutChip(data.filters, chip)); setPage(0)
+  }
+
+  function changeSort(next: string) {
+    if (!data) return
+    setSpec({ ...(spec ?? data.filters), sort: next as FilterSpec['sort'] })
+    setPage(0)
+  }
+
+  function goToPage(next: number) {
+    // Pin the parsed spec before turning the page. Without this, page two would
+    // re-submit the original sentence and parse it again — a second model call
+    // for a result the first one already produced.
+    if (!spec && data) setSpec(data.filters)
+    setPage(next)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   return (
@@ -84,7 +116,7 @@ export default function App() {
           </button>
         </form>
 
-        {!query && !override && (
+        {!query && !spec && (
           <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[12.5px]">
             <span className="text-muted">Try</span>
             {EXAMPLES.map((ex) => (
@@ -139,21 +171,38 @@ export default function App() {
               ))}
             </section>
 
-            <p className="mt-5 text-[12.5px] text-muted">
-              <span className="tabular font-medium text-ink">
-                {data.totalElements.toLocaleString('en-IN')}
-              </span>{' '}
-              {data.totalElements === 1 ? 'match' : 'matches'} ·{' '}
-              <span className="tabular">{data.tookMs}ms</span> ·{' '}
-              {data.parser.toLowerCase()} parser
-              {isFetching && ' · updating…'}
-            </p>
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-[12.5px] text-muted">
+                <span className="tabular font-medium text-ink">
+                  {data.totalElements.toLocaleString('en-IN')}
+                </span>{' '}
+                {data.totalElements === 1 ? 'match' : 'matches'} ·{' '}
+                <span className="tabular">{data.tookMs}ms</span> ·{' '}
+                {data.parser.toLowerCase()} parser
+                {isFetching && ' · updating…'}
+              </p>
+              {data.totalElements > 0 && (
+                <SortSelect
+                  sorts={schema?.sorts ?? []}
+                  value={data.filters.sort ?? 'RELEVANCE'}
+                  onChange={changeSort}
+                />
+              )}
+            </div>
 
             <div className="mt-5 grid gap-8 md:grid-cols-[160px_1fr]">
               <FacetPanel facets={data.facets} />
               {data.results.length > 0 ? (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {data.results.map((v) => <VehicleCard key={v.id} v={v} />)}
+                <div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {data.results.map((v) => <VehicleCard key={v.id} v={v} />)}
+                  </div>
+                  <Pagination
+                    page={data.page}
+                    size={data.size}
+                    total={data.totalElements}
+                    onPage={goToPage}
+                  />
                 </div>
               ) : (
                 <p className="text-[14px] text-muted">

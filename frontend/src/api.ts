@@ -1,4 +1,26 @@
-import type { FilterSpec, SearchResponse, SearchResult } from './types'
+import type { FilterSpec, Schema, SchemaResponse, SearchResponse, SearchResult } from './types'
+
+/**
+ * The catalogue's own description of what it can be filtered on: enum values,
+ * the concept vocabulary, live min/max ranges, cities and makes.
+ *
+ * The UI renders its controls from this rather than hardcoding enums, so adding
+ * a fuel type or a sort option is a backend-only change.
+ */
+export async function fetchSchema(): Promise<Schema> {
+  const res = await fetch('/api/v1/schema')
+  if (!res.ok) throw new Error(`Could not load schema (${res.status})`)
+  const raw: SchemaResponse = await res.json()
+  return {
+    enums: raw.enums ?? {},
+    sorts: raw.sorts ?? [],
+    cities: raw.cities ?? [],
+    makes: raw.makes ?? [],
+    concepts: (raw.concepts ?? []).map((c) => ({
+      key: c.key ?? '', label: c.label ?? '', kind: c.kind ?? '', terms: c.terms ?? [],
+    })),
+  }
+}
 
 export async function search(body: {
   query?: string
