@@ -1,0 +1,131 @@
+# Domain vocabulary: the mapping from how people talk to what the columns hold.
+#
+# This file is the synonym layer. It is deliberately data, not code, and not
+# search-engine analyzer config: it is version-controlled, diffable, unit-tested
+# against the golden query set, and editable by someone who knows cars but not
+# Java. The LLM is handed these keys and picks from them; it never invents a
+# field name.
+#
+#   constraints -> WHERE  (hard: removes rows)
+#   preferences -> ORDER BY (soft: reorders rows)
+
+concepts:
+
+  # --- The one that matters most -------------------------------------------
+  # "Automatic" is a class of gearboxes, not a value in the transmission column.
+  # Matching transmission = 'AUTOMATIC' returns zero rows here, and matching
+  # only a hypothetical AUTOMATIC value would silently drop every AMT, CVT and
+  # DCT car — most of the automatic inventory. Recall bugs like this are
+  # invisible: the user gets results, just not the right ones.
+  automatic:
+    label: Automatic
+    terms: [automatic, automatics, auto, self shifting, no clutch]
+    constraints:
+      transmissions: [AMT, CVT, DCT, TORQUE_CONVERTER]
+
+  manual:
+    label: Manual
+    terms: [manual, stick shift, manual transmission]
+    constraints:
+      transmissions: [MANUAL]
+
+  # --- Fuzzy lifestyle terms: preferences, never filters ---------------------
+  family:
+    label: Family car
+    terms: [family, family car, family cars, spacious, roomy, for the family]
+    preferences:
+      - { field: SEATS,       op: GTE, value: 6,   boost: 3.0 }
+      - { field: BOOT_LITRES, op: GTE, value: 400, boost: 1.5 }
+      - { field: NCAP_STARS,  op: GTE, value: 4,   boost: 2.0 }
+
+  high_safety:
+    label: High safety rating
+    terms: [high safety, high safety rating, high safety ratings, safe, safest,
+            safety, good safety, crash tested, 5 star]
+    preferences:
+      - { field: NCAP_STARS, op: GTE, value: 4, boost: 4.0 }
+
+  fuel_efficient:
+    label: Fuel efficient
+    terms: [fuel efficient, good mileage, high mileage, economical, mileage]
+    preferences:
+      - { field: MILEAGE_KMPL, op: GTE, value: 20, boost: 3.0 }
+
+  well_maintained:
+    label: Well maintained
+    terms: [well maintained, good condition, clean, top condition]
+    preferences:
+      - { field: INSPECTION_SCORE, op: GTE, value: 8, boost: 3.0 }
+      - { field: OWNERS,           op: LTE, value: 1, boost: 1.5 }
+
+  low_running:
+    label: Low kilometres
+    terms: [low km, low kms, low mileage car, low running, barely used, lightly used]
+    preferences:
+      - { field: KM_DRIVEN, op: LTE, value: 30000, boost: 3.0 }
+
+  powerful:
+    label: Powerful
+    terms: [powerful, fast, peppy, high performance]
+    preferences:
+      - { field: ENGINE_CC, op: GTE, value: 1500, boost: 2.5 }
+
+  # --- Terms that genuinely are hard constraints ----------------------------
+  first_owner:
+    label: First owner
+    terms: [first owner, single owner, 1st owner, one owner]
+    constraints:
+      maxOwners: 1
+
+  seven_seater:
+    label: 7 seater
+    terms: [7 seater, 7-seater, seven seater, 7 seat, six seater, 6 seater]
+    constraints:
+      seats: { gte: 6 }
+
+  # --- Body types -----------------------------------------------------------
+  suv:
+    label: SUV
+    # Buyers do not distinguish compact SUVs from full-size ones; a search for
+    # "SUV" that excludes a Nexon or Venue looks broken to an Indian shopper.
+    terms: [suv, suvs, compact suv, crossover]
+    constraints:
+      bodyTypes: [SUV, COMPACT_SUV]
+  sedan:
+    label: Sedan
+    terms: [sedan, sedans, saloon]
+    constraints: { bodyTypes: [SEDAN] }
+  hatchback:
+    label: Hatchback
+    terms: [hatchback, hatchbacks, hatch, small car]
+    constraints: { bodyTypes: [HATCHBACK] }
+  mpv:
+    label: MPV
+    terms: [mpv, mpvs, muv, people carrier, van]
+    constraints: { bodyTypes: [MPV] }
+  luxury:
+    label: Luxury
+    terms: [luxury, premium, luxurious, high end]
+    constraints: { bodyTypes: [LUXURY] }
+
+  # --- Fuel -----------------------------------------------------------------
+  diesel:
+    label: Diesel
+    terms: [diesel, crdi, tdi, dci]
+    constraints: { fuelTypes: [DIESEL] }
+  petrol:
+    label: Petrol
+    terms: [petrol, gasoline]
+    constraints: { fuelTypes: [PETROL] }
+  cng:
+    label: CNG
+    terms: [cng, gas]
+    constraints: { fuelTypes: [CNG] }
+  electric:
+    label: Electric
+    terms: [electric, ev, evs, battery]
+    constraints: { fuelTypes: [ELECTRIC] }
+  hybrid:
+    label: Hybrid
+    terms: [hybrid, hybrids, strong hybrid]
+    constraints: { fuelTypes: [HYBRID] }

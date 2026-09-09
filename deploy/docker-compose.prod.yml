@@ -1,0 +1,71 @@
+# Production topology for a single VPS.
+#
+# Only Caddy publishes ports. The app and the database talk over the internal
+# Docker network and are unreachable from the internet — this matters more than
+# it looks: Docker writes its own iptables rules in DOCKER-USER, so publishing a
+# database port here would expose it even with `ufw deny 5432` configured.
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?set SITE_ADDRESS to your domain}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - frontend-dist:/srv:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on: [app]
+
+  frontend:
+    build:
+      context: ../frontend
+    # Build-only: copies the compiled bundle into the volume Caddy serves.
+    command: sh -c "cp -r /dist/. /out/ && echo 'frontend published'"
+    volumes:
+      - frontend-dist:/out
+
+  app:
+    build:
+      context: ../backend
+    restart: unless-stopped
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/vehiclesearch
+      DB_USER: vsearch
+      DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      SEED_ENABLED: "true"
+    expose:
+      - "8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    # Leaves headroom for Postgres and Caddy on a 4 GB box.
+    mem_limit: 1g
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: vehiclesearch
+      POSTGRES_USER: vsearch
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD}
+    expose:
+      - "5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vsearch -d vehiclesearch"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 512m
+
+volumes:
+  pgdata:
+  frontend-dist:
+  caddy-data:
+  caddy-config:

@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: vehicle-search
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/vehiclesearch}
+    username: ${DB_USER:vsearch}
+    password: ${DB_PASSWORD:devpassword}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  threads:
+    virtual:
+      enabled: true
+
+server:
+  port: ${PORT:8080}
+
+management:
+  endpoints.web.exposure.include: health,info
+  endpoint.health.probes.enabled: true
+
+search:
+  # Weights for the ranking expression. Tunable without a redeploy of logic.
+  ranking:
+    deal-score-weight: 1.5
+    freshness-weight: 0.5
+    text-similarity-weight: 4.0
+    trigram-threshold: 0.25
+  seed:
+    enabled: ${SEED_ENABLED:true}
+    count: ${SEED_COUNT:600}
+
+logging.level.com.c24.vehiclesearch: DEBUG

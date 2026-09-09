@@ -1,0 +1,89 @@
+[
+  { "query": "Show SUVs under ₹15L",
+    "expect": { "bodyTypes": ["SUV","COMPACT_SUV"], "priceMax": 1500000 } },
+
+  { "query": "Diesel automatic cars below 80k km",
+    "expect": { "fuelTypes": ["DIESEL"],
+                "transmissions": ["AMT","CVT","DCT","TORQUE_CONVERTER"],
+                "kmMax": 80000 } },
+
+  { "query": "Family cars with high safety ratings",
+    "expect": { "concepts": ["family","high_safety"], "noConstraints": true } },
+
+  { "query": "hatchback under 6 lakh",
+    "expect": { "bodyTypes": ["HATCHBACK"], "priceMax": 600000 } },
+
+  { "query": "sedan between 8 and 12 lakh",
+    "expect": { "bodyTypes": ["SEDAN"], "priceMin": 800000, "priceMax": 1200000 } },
+
+  { "query": "cars under 15,00,000",
+    "expect": { "priceMax": 1500000 } },
+
+  { "query": "petrol cars under 1.2 cr",
+    "expect": { "fuelTypes": ["PETROL"], "priceMax": 12000000 } },
+
+  { "query": "7 seater diesel",
+    "expect": { "fuelTypes": ["DIESEL"], "seatsMin": 7 } },
+
+  { "query": "first owner cars only",
+    "expect": { "maxOwners": 1 } },
+
+  { "query": "cars after 2020",
+    "expect": { "yearMin": 2020 } },
+
+  { "query": "cars before 2018",
+    "expect": { "yearMax": 2018 } },
+
+  { "query": "2019 model creta",
+    "expect": { "yearMin": 2019, "yearMax": 2019, "freeText": "creta" } },
+
+  { "query": "emi under 15000",
+    "expect": { "emiMax": 15000 } },
+
+  { "query": "cars under 20k per month",
+    "expect": { "emiMax": 20000 } },
+
+  { "query": "automatic",
+    "expect": { "transmissions": ["AMT","CVT","DCT","TORQUE_CONVERTER"] } },
+
+  { "query": "manual transmission hatchback",
+    "expect": { "transmissions": ["MANUAL"], "bodyTypes": ["HATCHBACK"] } },
+
+  { "query": "cng cars below 50000 km",
+    "expect": { "fuelTypes": ["CNG"], "kmMax": 50000 } },
+
+  { "query": "fuel efficient cars under 8 lakh",
+    "expect": { "concepts": ["fuel_efficient"], "priceMax": 800000 } },
+
+  { "query": "well maintained low km suv",
+    "expect": { "concepts": ["well_maintained","low_running"], "bodyTypes": ["SUV","COMPACT_SUV"] } },
+
+  { "query": "cheapest suv",
+    "expect": { "bodyTypes": ["SUV","COMPACT_SUV"], "sort": "PRICE_ASC" } },
+
+  { "query": "newest cars first",
+    "expect": { "sort": "NEWEST_LISTED" } },
+
+  { "query": "hundai creta",
+    "expect": { "freeText": "hundai creta" } },
+
+  { "query": "mpv above 10 lakh",
+    "expect": { "bodyTypes": ["MPV"], "priceMin": 1000000 } },
+
+  { "query": "electric cars",
+    "expect": { "fuelTypes": ["ELECTRIC"] } },
+
+  { "query": "luxury suv automatic under 40 lakh",
+    "expect": { "bodyTypes": ["LUXURY","SUV","COMPACT_SUV"],
+                "transmissions": ["AMT","CVT","DCT","TORQUE_CONVERTER"],
+                "priceMax": 4000000 } },
+
+  { "query": "safe family car with good mileage under 12 lakh",
+    "expect": { "concepts": ["high_safety","family","fuel_efficient"], "priceMax": 1200000 } },
+
+  { "query": "suv over 20 lakh under 5 lakh",
+    "expect": { "unsatisfiable": true } },
+
+  { "query": "purple flying spaceship",
+    "expect": { "freeText": "purple flying spaceship", "noConstraints": true } }
+]
