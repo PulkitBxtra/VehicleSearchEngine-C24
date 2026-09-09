@@ -63,6 +63,13 @@ This also means removing a filter chip in the UI is a mechanical edit to a
 record — no re-parse, no LLM call. `SearchRequest` accepts `filters` directly for
 exactly this.
 
+Every refinement takes that route, not just chips. Changing the sort or turning
+a page resubmits the `FilterSpec` the last response returned rather than the
+original sentence, so a user who pages through 200 results and reorders them
+twice still costs exactly one parse. Without it, page two would re-parse the
+query and — for a natural-language search — spend a second model call
+reproducing an answer already in hand.
+
 ### Constraints filter, preferences rank
 
 The single most consequential split in the codebase.
@@ -207,6 +214,27 @@ declined here:
 **Migration trigger:** roughly 100k listings, or when faceting needs
 per-dimension drill-down passes. `QueryCompiler` is the only class that turns a
 `FilterSpec` into a query, so that migration replaces one file.
+
+### The contract is generated, not transcribed
+
+springdoc publishes the OpenAPI document from the controller and its records,
+and `openapi-typescript` turns that into the frontend's types. Renaming a field
+in a Java record breaks the frontend build at the call site rather than
+surfacing as `undefined` inside a component at runtime.
+
+That closes the loop on the claim above: the `FilterSpec` the language path
+produces and the one the chip editor submits are the same type, checked by two
+compilers, end to end.
+
+`GET /api/v1/schema` serves the other half — enum values, live min/max ranges,
+and the concept vocabulary. The UI builds its sort control from it instead of
+hardcoding the enum, and the same concept list is what the model is given, which
+is what keeps the prompt and the dictionary from drifting apart.
+
+Generating the document also caught a leak: `isEmpty`, `isUnsatisfiable` and
+`isBlank` were being serialised into every response as `empty`, `unsatisfiable`
+and `blank`. Internal helpers had become part of the published contract without
+anyone deciding they should be.
 
 ### JDBC, not JPA
 
