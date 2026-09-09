@@ -1,55 +1,91 @@
-# Render blueprint: a static frontend and a Dockerised API as separate services.
+# Render blueprint: static frontend + Dockerised API, with Postgres on Neon.
 #
-# Because they are separate origins, the API must allowlist the frontend's URL
-# via CORS_ALLOWED_ORIGINS, and the frontend must be built with the API's URL in
-# VITE_API_BASE_URL. Those two values reference each other — set them after the
-# first deploy assigns the hostnames.
-#
-# Verify against Render's current blueprint schema before relying on this;
-# field names there do change.
+# The two services are separate origins, so they must be pointed at each other
+# after the first deploy assigns hostnames:
+#   API    CORS_ALLOWED_ORIGINS = the static site's URL
+#   static VITE_API_BASE_URL    = the API service's URL
+# See deploy/RENDER.md.
+
 services:
+  # ---------------------------------------------------------------- API
   - type: web
     name: vehicle-search-api
     runtime: docker
+    # Both paths are relative to the repository root.
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
-    # Match the database's region. Neon here is ap-southeast-1, and a
-    # cross-region hop costs more than every query this service runs.
+
+    # Match the database's region. Neon here is ap-southeast-1; a cross-region
+    # hop costs more than every query this service runs. Measured from outside
+    # the region, searches took 270-383ms against 10-30ms locally.
     region: singapore
-    # Free instances sleep after ~15 minutes idle and a JVM cold start is
-    # 40-60s. Acceptable for a personal demo, poor for a link someone opens
-    # once and judges.
+
+    # 'free' works, but free instances sleep after ~15 minutes idle and a JVM
+    # waking in a cold container takes 40-60s -- long enough that someone
+    # opening the link once concludes it is broken.
     plan: starter
+
     healthCheckPath: /actuator/health
+
+    # Do not rebuild the API when only the frontend changed.
+    buildFilter:
+      paths:
+        - backend/**
+        - render.yaml
+
     envVars:
-      - key: DB_URL          # jdbc:postgresql://<neon-host>/<db>?sslmode=require
-        sync: false          #   drop channel_binding: the JDBC driver rejects it
+      # Neon gives a libpq URL. Convert to JDBC and DROP channel_binding --
+      # that is a libpq option and the PostgreSQL JDBC driver rejects it:
+      #   jdbc:postgresql://<host>/<db>?sslmode=require
+      - key: DB_URL
+        sync: false
       - key: DB_USER
         sync: false
       - key: DB_PASSWORD
         sync: false
+
+      # Absent means the LLM path is off, not broken: the rules parser still
+      # answers every formulaic query.
       - key: GEMINI_API_KEY
         sync: false
-      - key: CORS_ALLOWED_ORIGINS   # the static site's URL, exactly
+
+      # Exact origin of the static site, no trailing slash. A mismatch fails
+      # preflight with 403, which the browser reports as an opaque CORS error
+      # rather than as a misconfiguration.
+      - key: CORS_ALLOWED_ORIGINS
         sync: false
+
+      # Idempotent: writes 600 vehicles once, skips when the table is populated.
       - key: SEED_ENABLED
-        value: "true"        # idempotent; skips when the catalogue is populated
+        value: "true"
       - key: RATE_LIMIT_RPM
         value: "60"
 
+  # ---------------------------------------------------------------- frontend
   - type: web
     name: vehicle-search
     runtime: static
-    rootDir: frontend
-    buildCommand: npm install && npm run build
-    staticPublishPath: dist
+
+    # staticPublishPath is relative to the repository root, so the build cds
+    # into frontend rather than setting rootDir -- which would make the two
+    # paths relative to different places.
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: ./frontend/dist
+
+    buildFilter:
+      paths:
+        - frontend/**
+        - render.yaml
+
     envVars:
-      # Vite inlines this at build time, so changing it needs a rebuild, not a
-      # restart.
+      # Vite inlines this at build time, so changing it requires a rebuild,
+      # not a restart.
       - key: VITE_API_BASE_URL
         sync: false
+
     routes:
-      # Client-side routing: every unmatched path serves the app shell.
+      # SPA fallback: unmatched paths serve the app shell. If Render rejects
+      # this source pattern, the equivalent is `/<path>`.
       - type: rewrite
         source: /*
         destination: /index.html

@@ -3,6 +3,10 @@
 Two services on Render — a static frontend and a Dockerised API — with Postgres
 on Neon. See [`README.md`](README.md) for the single-VPS alternative.
 
+`render.yaml` at the repository root declares both. Point Render at the repo as
+a Blueprint and it creates them together, prompting for each secret marked
+`sync: false`.
+
 ## 1. Neon
 
 Create a project and copy the connection string. It arrives in libpq form:
@@ -28,7 +32,8 @@ thereafter.
 ## 2. API service
 
 Docker runtime, `dockerfilePath: ./backend/Dockerfile`, context `./backend`,
-health check `/actuator/health`.
+health check `/actuator/health`. Both paths are relative to the repository
+root.
 
 **Put it in the same region as Neon.** A cross-region hop costs more than every
 query this service runs — against Singapore from outside the region, searches
@@ -39,8 +44,14 @@ Environment: the three database variables above, plus `GEMINI_API_KEY` and
 
 ## 3. Static site
 
-Root `frontend`, build `npm install && npm run build`, publish `dist`, and a
-rewrite of `/*` to `/index.html` so client-side routing works.
+Build `cd frontend && npm install && npm run build`, publish
+`./frontend/dist`, and rewrite `/*` to `/index.html` so client-side routing
+works.
+
+Note the build cds into `frontend` rather than setting `rootDir`.
+`staticPublishPath` is resolved relative to the **repository root**, so mixing
+the two makes the build directory and the publish directory relative to
+different places — and the site deploys empty.
 
 Set `VITE_API_BASE_URL` to the API service's URL. Vite inlines it at build
 time, so changing it requires a **rebuild**, not a restart.
