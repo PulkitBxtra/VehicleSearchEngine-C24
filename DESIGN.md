@@ -115,14 +115,78 @@ someone who knows cars but not Java.
 
 The deterministic parser is the **primary** path, not a fallback. Marketplace
 query distributions are Zipfian and formulaic, so a few dozen patterns cover
-most traffic at zero latency and zero cost. The plan is:
+most traffic at zero latency and zero cost.
 
 ```
-rules → cache → LLM (tail only) → rules result as floor on failure
+explicit spec → rules (confident?) → cache → Gemini → rules as floor
 ```
 
-An LLM outage degrades the service rather than stopping it. This also keeps a
-public deployment from being a wallet-drain vector.
+`RulesParser` reports `confident` when it consumed the whole query and left no
+residual. In that case the model is never called: `"diesel automatic under 80k
+km"` costs no token, no round trip, and no variance.
+
+An outage, a timeout, an exhausted budget and a missing key are all the same
+event to the caller — `Optional.empty()`, and the rules result ships instead.
+The service degrades; it does not fail.
+
+### What the model is allowed to say
+
+`LlmFilterDraft` is deliberately narrower than `FilterSpec`. The model emits
+**concept keys** from a closed enum — never preferences, boosts, column names or
+sort expressions:
+
+```jsonc
+{ "concepts": ["family", "high_safety"],   // enum, from concepts.yml
+  "priceMax": 1500000,
+  "freeText": "creta",
+  "unmapped": ["sunroof"] }
+```
+
+So the model decides *which vocabulary applies*, and `concepts.yml` decides
+*what that vocabulary means*. Ranking semantics stay in a reviewed file under
+test rather than in whatever the model felt like weighting on a given call. It
+also means the schema and the prompt are both generated from the live dictionary
+and enums, so adding a concept updates the contract without anyone remembering
+to edit a prompt string.
+
+`LlmParser` is the trust boundary: enum values are re-parsed defensively, and an
+unknown concept key becomes a user-visible warning rather than a silent drop.
+
+### The model replaces the rules result; it does not merge with it
+
+When Gemini answers, its spec is used wholesale. Merging was considered and
+rejected: two specs disagreeing about the same bound has no principled
+resolution, and "whichever parser ran" is far easier to reproduce from a log
+than "whichever half of each". The one exception is a defensive guard — a blank
+model result never displaces a non-blank rules result.
+
+### Caching parses, not results
+
+```
+normalise(query) → FilterSpec,  Caffeine, 6h TTL, 10k entries
+```
+
+Inventory changes hourly; the *meaning* of "diesel automatic under 80k km" does
+not. Caching parses is therefore safe with a long TTL, while caching result sets
+would go stale and eventually show a sold car.
+
+One subtlety worth recording: Spring's cache abstraction unwraps `Optional`
+return values, so `#result` in a `@Cacheable` condition is the unwrapped value
+and is `null` for an empty `Optional`. The natural-looking
+`unless = "#result.isEmpty()"` throws on every failed parse.
+
+### Two independent cost ceilings
+
+A public endpoint with a paid model behind it is a wallet-drain vector, and the
+cheapest attack is a loop over unique query strings — every one a cache miss,
+every one a call.
+
+- `GeminiClient` enforces a **daily call budget**. Past it, rules serve.
+- `RateLimitFilter` enforces a **per-client rate**, so one caller cannot exhaust
+  the day's allowance before anyone else arrives.
+
+The two are independent on purpose: the first caps total spend, the second caps
+how fast any one party can consume it.
 
 ### Postgres, not Elasticsearch
 
@@ -182,10 +246,62 @@ All three produce plausible-looking output — empty or oddly-filtered result se
 that read as thin inventory rather than as parse failures. None would have been
 caught by an integration test asserting HTTP 200.
 
-## Known limitations
+## Grading both parsers against one file
 
-- **The LLM path is not implemented.** Language queries the rules do not cover
-  fall through to a trigram search on make/model. `parser` reports `RULES`.
+`GoldenSet` grades the rules parser and Gemini with the same code against the
+same expectations. That is not a testing convenience — it is what turns "the
+model handles the tail better" into a number, and it is what caught a real bug
+that neither parser would have exposed alone.
+
+The measured baseline was rules 28/28, Gemini 24/28. Three of the model's four
+misses were defects in the golden set, not the model: a concept that mapped
+"6 seater" and "7 seater" to the same filter, a prompt that never said bounds
+are inclusive, and a sort enum with two defensible readings of "newest". A suite
+that only ever grades the parser it was written for cannot tell you your
+specification is ambiguous; it can only confirm your code matches it.
+Full analysis in [EVALUATION.md](EVALUATION.md).
+
+### Free-tier quota shapes the design, not just the bill
+
+The Gemini free tier allows **20 requests per day, per model**, and reports the
+overflow as `503 "high demand"` for several minutes before admitting to
+`429 RESOURCE_EXHAUSTED`. Read literally the first response blames the provider;
+it means the client is over quota.
+
+Two consequences are baked into the code. `GeminiClient` counts quota failures
+separately from transport failures, so a billing wall is never mistaken for a
+model that parses badly. And it retries a 503 but never a 429 — congestion
+clears in milliseconds, a quota window does not, and the rules parser already
+has an answer ready.
+
+### Two bugs the live model found that no test did
+
+Both were exposed only by pointing a real model at real data, and both had
+passing tests either side of them.
+
+**A city that does not exist.** The model parsed "…in bangalore" correctly and
+the SQL was correct, but the catalogue stores `Bengaluru` and `IN` is
+case-sensitive. Zero results — presented to the user as "no stock in your city"
+rather than "we did not recognise your city", which is the worse of the two
+because they leave believing the inventory is thin. `Cities` now canonicalises
+at the compile step, covering the renamed cities half the country still uses
+(Bombay, Calcutta, Gurgaon) and the airport codes people type. It sits in the
+compiler rather than either parser so the chip-edit path is covered too.
+
+**An electric car doing 48.9 km/l.** Seeding electrics with a "petrol
+equivalent" kmpl produced numbers that are not merely wrong but obviously
+absurd, and a reader who spots one stops trusting every other figure on the
+page. The honest model is that the column does not apply: `mileage_kmpl` is now
+nullable and null for electrics, which carry `range_km` instead, with a CHECK
+constraint asserting exactly one of the two is set. The migration backfills
+before adding that constraint, so it is safe against a database that already
+holds rows rather than only against a fresh one.
+
+Neither is the sort of thing a unit test finds, because every component was
+individually correct. That is the argument for exercising the real path against
+real data before calling something done.
+
+## Known limitations
 - **Facet counts are post-filter.** They describe the current result set, not
   what each alternative would return. Proper drill-down faceting needs one pass
   per dimension with that dimension's own predicate removed.
@@ -196,9 +312,22 @@ caught by an integration test asserting HTTP 200.
 - **Preferences score as binary steps**, not ramps. A four-star and a five-star
   car score identically on safety. Deliberate — it keeps the YAML and the SQL
   saying the same thing — but it is a real fidelity limit.
-- **`mileage_kmpl` for electric vehicles** is a petrol-equivalent figure, since
-  the column has no meaning for an EV.
-- **No rate limiting yet.** Required before the LLM path is exposed publicly.
+- **The rate limiter is in-memory and per-instance.** It resets on restart and
+  keys on `X-Forwarded-For`, which is client-supplied and spoofable. Adequate for
+  cost control on one box; not a security control.
+- **The prompt is not versioned.** Editing it changes behaviour with no record
+  beyond git history. At scale the prompt and its golden-set score belong
+  together as a versioned artifact.
+- **The golden set is curated, not sampled.** 29 hand-written queries are a
+  regression net, not a picture of real demand. The production version is mined
+  from query logs and weighted by frequency.
+- **Only parsing is graded.** Whether the ranking is *good* needs click and
+  booking data.
+- **Generated frontend types are optional-everywhere.** springdoc marks record
+  components optional because Java records carry no nullability metadata, and
+  springdoc 3.1 does not read the JSpecify annotations Spring itself uses. The
+  response envelope is narrowed once in `api.ts`; the proper fix is
+  `@Schema(requiredMode = REQUIRED)` on the response records.
 
 ## What changes at scale
 
