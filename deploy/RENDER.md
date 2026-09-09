@@ -86,6 +86,29 @@ curl -si -X OPTIONS $API/api/v1/search \
   | head -1        # expect 403
 ```
 
+## URLs after deploying
+
+Hostnames depend on name availability — Render appends a suffix if the name is
+taken — but the paths are fixed.
+
+**Static site** `https://vehicle-search.onrender.com`
+
+| Path | |
+|---|---|
+| `/` | the app |
+
+**API service** `https://vehicle-search-api.onrender.com`
+
+| Path | |
+|---|---|
+| `POST /api/v1/search` | the product |
+| `GET /api/v1/schema` | enums, ranges, concept vocabulary |
+| `GET /api/v1/vehicles/{id}` | one vehicle |
+| `GET /swagger-ui.html` | browsable API docs |
+| `GET /v3/api-docs` | the OpenAPI document the frontend types are generated from |
+| `GET /actuator/health` | Render's health check; validates the database |
+| `GET /actuator/health/liveness` | keep-alive target; does not touch the database |
+
 ## Health endpoints, and keeping the service awake
 
 | Endpoint | Touches the database | Use for |
@@ -96,10 +119,14 @@ curl -si -X OPTIONS $API/api/v1/search \
 
 None of them are rate limited; only `/api/v1/search` is.
 
+**Only the API can sleep.** Free *web services* spin down after ~15 minutes
+without inbound traffic; static sites do not — they have no instance to stop.
+So the frontend needs no keep-alive and has no health path, and a cron should
+target exactly one URL.
+
 Render's health check does **not** stop a service sleeping — it verifies
-deploys and triggers restarts. A free instance still sleeps after ~15 minutes
-without inbound traffic. On `starter` the service never sleeps and no
-keep-alive is needed.
+deploys and triggers restarts. On `starter` the service never sleeps and no
+keep-alive is needed at all.
 
 If you do ping a free instance from an external cron, use **`/liveness`**. The
 main health endpoint validates a database connection on every call, so pinging
