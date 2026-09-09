@@ -86,6 +86,31 @@ curl -si -X OPTIONS $API/api/v1/search \
   | head -1        # expect 403
 ```
 
+## Health endpoints, and keeping the service awake
+
+| Endpoint | Touches the database | Use for |
+|---|---|---|
+| `/actuator/health` | **yes** | Render's `healthCheckPath` — it should fail when the database is unreachable |
+| `/actuator/health/liveness` | no | keep-alive pings |
+| `/actuator/health/readiness` | no | — |
+
+None of them are rate limited; only `/api/v1/search` is.
+
+Render's health check does **not** stop a service sleeping — it verifies
+deploys and triggers restarts. A free instance still sleeps after ~15 minutes
+without inbound traffic. On `starter` the service never sleeps and no
+keep-alive is needed.
+
+If you do ping a free instance from an external cron, use **`/liveness`**. The
+main health endpoint validates a database connection on every call, so pinging
+it keeps Neon awake as well — spending Neon compute-hours to solve a Render
+problem.
+
+And check the arithmetic before relying on it: Render free is ~750
+instance-hours a month, while 24/7 uptime is ~730. Pinging turns a
+scale-to-zero free tier into an always-on one that runs out partway through the
+month, on both services at once.
+
 ## The cold start
 
 Render's free web services sleep after ~15 minutes idle, and a JVM waking in a
