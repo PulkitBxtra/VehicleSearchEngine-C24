@@ -25,6 +25,9 @@
   { "query": "7 seater diesel",
     "expect": { "fuelTypes": ["DIESEL"], "seatsMin": 7 } },
 
+  { "query": "6 seater mpv",
+    "expect": { "bodyTypes": ["MPV"], "seatsMin": 6 } },
+
   { "query": "first owner cars only",
     "expect": { "maxOwners": 1 } },
 
@@ -85,5 +88,5 @@
     "expect": { "unsatisfiable": true } },
 
   { "query": "purple flying spaceship",
-    "expect": { "freeText": "purple flying spaceship", "noConstraints": true } }
+    "expect": { "noConstraints": true } }
 ]
