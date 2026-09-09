@@ -106,15 +106,17 @@ taken — but the paths are fixed.
 | `GET /api/v1/vehicles/{id}` | one vehicle |
 | `GET /swagger-ui.html` | browsable API docs |
 | `GET /v3/api-docs` | the OpenAPI document the frontend types are generated from |
+| `GET /health` | plain `200 OK`; touches nothing — the keep-alive target |
 | `GET /actuator/health` | Render's health check; validates the database |
-| `GET /actuator/health/liveness` | keep-alive target; does not touch the database |
+| `GET /actuator/health/liveness` | actuator equivalent of `/health` |
 
 ## Health endpoints, and keeping the service awake
 
 | Endpoint | Touches the database | Use for |
 |---|---|---|
+| `/health` | no | keep-alive pings |
 | `/actuator/health` | **yes** | Render's `healthCheckPath` — it should fail when the database is unreachable |
-| `/actuator/health/liveness` | no | keep-alive pings |
+| `/actuator/health/liveness` | no | equivalent to `/health` |
 | `/actuator/health/readiness` | no | — |
 
 None of them are rate limited; only `/api/v1/search` is.
@@ -128,7 +130,7 @@ Render's health check does **not** stop a service sleeping — it verifies
 deploys and triggers restarts. On `starter` the service never sleeps and no
 keep-alive is needed at all.
 
-If you do ping a free instance from an external cron, use **`/liveness`**. The
+If you do ping a free instance from an external cron, use **`/health`**. The
 main health endpoint validates a database connection on every call, so pinging
 it keeps Neon awake as well — spending Neon compute-hours to solve a Render
 problem.

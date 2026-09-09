@@ -48,6 +48,7 @@ public class CorsConfig {
 
         source.registerCorsConfiguration("/api/**", config);
         source.registerCorsConfiguration("/actuator/health", config);
+        source.registerCorsConfiguration("/health", config);
         return new CorsFilter(source);
     }
 }

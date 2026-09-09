@@ -174,7 +174,16 @@ sort added to the backend appears in the frontend with no frontend change. The
 concept list is the same vocabulary handed to the model, which is what keeps the
 prompt and the dictionary from drifting apart.
 
+### `GET /health`
+
+`200 OK`, plain text. Touches nothing — no database, no connection — so it
+answers while dependencies are down. This is the one to ping for keep-alive.
+
 ### `GET /actuator/health`
+
+Spring Boot Actuator. Validates a datasource connection and returns `503` when
+Postgres is unreachable, which is what a platform health check should assert
+before routing traffic to an instance.
 
 ## What the parser understands
 
