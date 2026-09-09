@@ -47,6 +47,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
+        // A CORS preflight costs nothing and reaches no model. Counting it would
+        // halve every browser client's effective budget, and answering one with
+        // 429 fails the preflight itself — which the browser reports as an
+        // opaque CORS error rather than as rate limiting.
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) return true;
+
         // Health checks and the schema endpoint are cheap and are polled by the
         // platform; only the endpoint that can reach the model is limited.
         return !"/api/v1/search".equals(request.getRequestURI());

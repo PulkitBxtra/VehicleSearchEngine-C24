@@ -301,6 +301,21 @@ Neither is the sort of thing a unit test finds, because every component was
 individually correct. That is the argument for exercising the real path against
 real data before calling something done.
 
+### CORS is an allowlist, and preflight is not rate limited
+
+A split deployment puts the frontend on a different origin from the API, so the
+API has to grant access explicitly. Two details are load-bearing:
+
+The allowlist is never a wildcard. This endpoint has a paid model and a spend
+budget behind it, and `*` would mean any page on the internet may spend it from
+a visitor's browser.
+
+CORS preflight is exempt from rate limiting. A preflight reaches no model and
+costs nothing, so counting it would halve every browser client's real budget —
+and answering one with 429 fails the preflight itself, which the browser
+surfaces as an opaque CORS error rather than as rate limiting. That failure mode
+is very hard to diagnose from the client side.
+
 ## Known limitations
 - **Facet counts are post-filter.** They describe the current result set, not
   what each alternative would return. Proper drill-down faceting needs one pass

@@ -108,7 +108,8 @@ EVAL_ONLY='before 2018|newest cars' ./mvnw test -DexcludedGroups= -Dtest=GeminiL
 | `GEMINI_API_KEY` | *(empty)* | Absent means the LLM path is off, not broken |
 | `GEMINI_MODEL` | `gemini-3.5-flash-lite` | Pinned, not aliased. Free quota is 20/day **per model** |
 | `GEMINI_MAX_DAILY_CALLS` | `500` | Hard spend ceiling; past it, rules serve |
-| `RATE_LIMIT_RPM` | `60` | Per-client limit on `/api/v1/search` |
+| `RATE_LIMIT_RPM` | `60` | Per-client limit on `/api/v1/search`; preflight exempt |
+| `CORS_ALLOWED_ORIGINS` | *(empty)* | Comma-separated origins. Empty means same-origin, no CORS headers emitted |
 | `SEED_COUNT` | `600` | Vehicles to generate |
 | `DB_URL` / `DB_USER` / `DB_PASSWORD` | local dev values | |
 
@@ -208,8 +209,15 @@ non-empty.
 
 ## Deployment
 
-See [`deploy/README.md`](deploy/README.md). Single VPS, Caddy terminating TLS,
-app and database on the internal Docker network only.
+Two supported shapes:
+
+- **[Render + Neon](deploy/RENDER.md)** — static frontend and Dockerised API as
+  separate services. Different origins, so the API allowlists the frontend via
+  `CORS_ALLOWED_ORIGINS`.
+- **[Single VPS](deploy/README.md)** — Caddy terminating TLS, app and database
+  on the internal Docker network only, nothing but 443 published.
+
+`render.yaml` in the repo root is a blueprint for the first.
 
 ## Design notes
 

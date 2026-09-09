@@ -1,6 +1,16 @@
 import type { FilterSpec, Schema, SchemaResponse, SearchResponse, SearchResult } from './types'
 
 /**
+ * Empty in development and on any same-origin deployment, where Vite's proxy or
+ * a reverse proxy handles /api. Set to the API service's URL when the frontend
+ * and backend are deployed separately.
+ *
+ * Vite inlines this at build time, so it is a build argument on the hosting
+ * platform, not a runtime variable.
+ */
+const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
+
+/**
  * The catalogue's own description of what it can be filtered on: enum values,
  * the concept vocabulary, live min/max ranges, cities and makes.
  *
@@ -8,7 +18,7 @@ import type { FilterSpec, Schema, SchemaResponse, SearchResponse, SearchResult }
  * a fuel type or a sort option is a backend-only change.
  */
 export async function fetchSchema(): Promise<Schema> {
-  const res = await fetch('/api/v1/schema')
+  const res = await fetch(`${API_BASE}/api/v1/schema`)
   if (!res.ok) throw new Error(`Could not load schema (${res.status})`)
   const raw: SchemaResponse = await res.json()
   return {
@@ -28,7 +38,7 @@ export async function search(body: {
   page?: number
   size?: number
 }): Promise<SearchResult> {
-  const res = await fetch('/api/v1/search', {
+  const res = await fetch(`${API_BASE}/api/v1/search`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
